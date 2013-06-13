@@ -5,7 +5,7 @@ var PLAYER_TIMEOUT = 3000;
 var WORLD_WIDTH = 800;
 var WORLD_HEIGHT = 600;
 
-currentWorld = new World(WORLD_HEIGHT, WORLD_WIDTH, 0);
+currentWorld = new World(WORLD_WIDTH, WORLD_HEIGHT, 0);
 
 var indexPage = fs.readFileSync('./index.html', {"encoding": "utf-8"});
 

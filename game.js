@@ -16,34 +16,42 @@ var keys = {
 var loadingLoop = null;
 var hasReturned = true;
 
-var animations = {};
-function Animation(id, text, size, x, y, color, duration){
-	this.id = id;
+var animationsQueue = [];
+function AnimationText(text, callback, size, x, y, color, holdDuration, fadeDuration){
+	this.callback = callback;
 	this.text = text;
-	this.size = size;
-	this.x = x;
-	this.y = y;
-	this.color = color;
-	this.current = duration;
-	this.duration = duration;
+	this.size = typeof(size) == 'undefined' ? 30 : size;
+	this.x = typeof(x) == 'undefined' ? 100 : x;
+	this.y = typeof(y) == 'undefined' ? 150 : y;
+	this.color = typeof(color) == 'undefined' ? "FF0000" : color;
+	this.fadeDuration = typeof(fadeDuration == 'undefined') ? 60 : fadeDuration;
+	this.holdDuration = typeof(holdDuration == 'undefined') ? 60 : holdDuration;
+	this.current = this.holdDuration + this.fadeDuration;
 	this.drawFtn = function(context){
-		context.font = "bold " + this.size + " Calibri";
-		console.log(this.current / this.duration);
-		context.fillStyle = toRGBA(this.color, this.current / this.duration);
+		context.font = "bold " + this.size + "pt Calibri";
+		if(this.current < this.fadeDuration){
+			context.fillStyle = toFadeColor(this.color, this.current / this.fadeDuration);
+		} else{
+			context.fillStyle = this.color;
+		}
 		context.fillText(this.text, this.x, this.y);
 		if(--this.current < 0){
-			delete animations[this.id];
+			animationsQueue.shift();
+			if(typeof(callback) == 'function') callback.apply(this);
 		}
 	}
-	animations[this.id] = this;
 }
 
-function toRGBA(color, opacity){
+function queueAnimation(anim){
+	animationsQueue.push(anim);
+}
+
+function toFadeColor(color, opacity){
 	color = color.substring(1); // strip "#";
-	var r = parseInt(color.substring(0,2), 16);
-	var g = parseInt(color.substring(2,2), 16);
-	var b = parseInt(color.substring(4,2), 16);
-	return "rgba(" + r + "," + g + "," + b + "," + opacity + ")";
+	var r = parseInt(parseInt(color.substring(0,2), 16) * opacity);
+	var g = parseInt(parseInt(color.substring(2,4), 16) * opacity);
+	var b = parseInt(parseInt(color.substring(4,6), 16) * opacity);
+	return "rgb(" + r + "," + g + "," + b + ")";
 }
 
 //Set up window animation request frame (x-browser compatibility)
@@ -88,10 +96,10 @@ window.onload = function(){
 	};
 	loadingLoop = setInterval(function(){
 		if(typeof(currentUser) != 'boolean'){
-			var welcome = new Animation("welcome", "Welcome!", 20, 30, 30, "#ff0000", 120);
+			queueAnimation(new AnimationText("Welcome!"));
 			clearInterval(loadingLoop);
 			updateIsIt();
-			setInterval(updateLoop, 100);
+			setInterval(updateLoop, 50);
 			requestAnimationFrame(localLoop);
 		}
 	}, 100);
@@ -105,19 +113,13 @@ function localLoop(){
 			console.log("NEW GAME!")
 			currentWorld = updateData.world;
 		}
+		if(currentWorld.width != context.canvas.width) context.canvas.width = currentWorld.width;
+		if(currentWorld.height != context.canvas.height) context.canvas.height = currentWorld.height;
 		//update location
-		if(keys[87] || keys[38]){
-			currentUser.y -= currentUser.speed;
-		}
-		if(keys[65] || keys[37]){
-			currentUser.x -= currentUser.speed;
-		}
-		if(keys[83] || keys[40]){
-			currentUser.y += currentUser.speed;
-		}
-		if(keys[68] || keys[39]){
-			currentUser.x += currentUser.speed;
-		}
+		currentUser.y -= currentUser.speed * (keys[87] || keys[38]); //up
+		currentUser.x -= currentUser.speed * (keys[65] || keys[37]); //left
+		currentUser.y += currentUser.speed * (keys[83] || keys[40]); //down
+		currentUser.x += currentUser.speed * (keys[68] || keys[39]); //right
 		//draw
 		context.fillStyle="#000000";
 		context.fillRect(0, 0, currentWorld.width, currentWorld.height);
@@ -137,8 +139,8 @@ function localLoop(){
 		context.fillStyle = currentUser.isIt ? "#550000" : "#005500";
 		context.fillRect(currentUser.x - 5, currentUser.y - 5, 10, 10);
 		//draw texts
-		for(var anim in animations){
-			animations[anim].drawFtn(context);
+		if(animationsQueue.length > 0){
+			animationsQueue[0].drawFtn(context);
 		}
 
 	}
@@ -148,8 +150,10 @@ function localLoop(){
 function updateIsIt(isIt){
 	currentUser.isIt = isIt;
 	if(currentUser.isIt){
+		if(currentUser.isIt) queueAnimation(new AnimationText('You Are It!'));
 		document.getElementById('isIt').style.display = "block";
 	} else{
+		if(currentUser.isIt) queueAnimation(new AnimationText('You Are No Longer It!'));
 		document.getElementById('isIt').style.display = "none";
 	}
 }
