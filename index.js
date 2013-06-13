@@ -1,24 +1,51 @@
 var http = require('http');
 var fs = require('fs');
 
-function World(width, height){
+var PLAYER_TIMEOUT = 3000;
+var WORLD_WIDTH = 800;
+var WORLD_HEIGHT = 600;
+
+currentWorld = new World(WORLD_HEIGHT, WORLD_WIDTH, 0);
+
+var indexPage = fs.readFileSync('./index.html', {"encoding": "utf-8"});
+
+function World(width, height, id){
 	this.width = width;
 	this.height = height;
-	this.players = [];
+	this.id = id;
+	this.onlinePlayers = [];
+	this.offlinePlayers = [];
 
 	this.addPlayer = function(newPlayer){
-		this.players[newPlayer.id] = newPlayer;
+		this.onlinePlayers[newPlayer.id] = newPlayer;
+		if(Object.keys(this.onlinePlayers).length == 1) this.onlinePlayers[newPlayer.id].setIsIt(true);
+
 	}
 
 	this.getPlayers = function(){
-		return this.players;		
+		return this.onlinePlayers;		
+	}
+
+	this.setUserOffline = function(userID){
+		var temp = this.onlinePlayers[userID];
+		this.offlinePlayers.push(temp);
+		delete this.onlinePlayers[userID];
+		if(temp.isIt){
+			newGame();
+		}
+	}
+
+	this.setUserOnline = function(userID){
+		var temp = this.offlinePlayers[userID];
+		this.onlinePlayers.push(temp);
+		delete this.offlinePlayers[userID];
 	}
 
 	this.getPlayersInArea = function(viewRect){
 		areaPlayers = []
-		playerIDs = Object.keys(this.players);
+		playerIDs = Object.keys(this.onlinePlayers);
 		var player;
-		while(player = this.players[playerIDs.pop()]){
+		while(player = this.onlinePlayers[playerIDs.pop()]){
 			if(player.x >= viewRect.x && player.x <= viewRect.x + viewRect.w &&
 			player.y >= viewRect.y && player.y <= viewRect.y + viewRect.h){
 				areaPlayers.push(player);
@@ -28,15 +55,36 @@ function World(width, height){
 	}
 
 	this.getPlayerByID = function(playerID){
-		return this.players[playerID];
+		return this.onlinePlayers[playerID];
 	}
 }
 
-function Player(startx, starty){
+function newGame(){
+	console.log("--------------NEW GAME-----------------");
+	newWorld = new World(currentWorld.width, currentWorld.height, currentWorld.id + 1);
+	for(var id in currentWorld.onlinePlayers){
+		newWorld.addPlayer(currentWorld.onlinePlayers[id]);
+	}
+	currentWorld = newWorld;
+}
+
+function Player(startx, starty, viewDist, speed, isIt){
 	this.x = startx;
 	this.y = starty;
-	this.viewDist = 50;
+	this.viewDist = viewDist;
+	this.speed = speed;
 	this.id = guid();
+	this.lastSeen = Date.now();
+	this.isIt = isIt;
+
+	this.see = function(){
+		this.lastSeen = Date.now();
+		this.online = true;
+	}
+
+	this.setIsIt = function(isIt){
+		this.isIt = isIt;
+	}
 
 	this.getViewArea = function(){
 		return {"x": this.x - this.viewDist,
@@ -50,7 +98,9 @@ function Player(startx, starty){
 			"x": this.x,
 			"y": this.y,
 			"id": this.id,
-			"viewDist": this.viewDist
+			"viewDist": this.viewDist,
+			"speed": this.speed,
+			"isIt": this.isIt
 		});
 	}
 
@@ -64,10 +114,6 @@ function Player(startx, starty){
 	}
 }
 
-world1 = new World(800, 600);
-
-var indexPage = fs.readFileSync('./index.html', {"encoding": "utf-8"});
-
 http.createServer(function(req, res){
 	requrl = req.url.split('/');
 	requrl.shift();
@@ -75,16 +121,18 @@ http.createServer(function(req, res){
 		res.writeHead(200, {'Content-Type': 'text/html'});
 		res.write(indexPage);
 	} else if(requrl[0] == 'createuser'){
-		var newPlayer = new Player(15, 15);
-		world1.addPlayer(newPlayer);
+		var newPlayer = new Player(parseInt(Math.random() * WORLD_WIDTH), parseInt(Math.random() * WORLD_HEIGHT), 75, 1.5, false);
+		currentWorld.addPlayer(newPlayer);
 		res.writeHead(200, {'Content-Type': 'text/json'});
 		res.write(newPlayer.toString());
 	} else if(requrl[0] == 'checkuser'){
 		res.writeHead(200, {'Content-Type': 'text/json'});
-		if(typeof(world1.players[requrl[1]]) == 'undefined'){
-			res.write('{"status": "false"}');
+		if(typeof(currentWorld.onlinePlayers[requrl[1]]) != 'undefined'){
+			res.write('{"status": "true", "info": ' + currentWorld.onlinePlayers[requrl[1]].toString() + '}');
+		} else if(typeof(currentWorld.offlinePlayers[requrl[1]]) != 'undefined') {
+			res.write('{"status": "true", "info": ' + currentWorld.offlinePlayers[requrl[1]].toString() + '}');
 		} else{
-			res.write('{"status": "true", "info": ' + world1.players[requrl[1]].toString() + '}');
+			res.write('{"status": "false"}');
 		}
 	} else if(requrl[0] == 'game.js'){
 		res.writeHead(200, {'Content-Type': 'application/javascript'});
@@ -92,19 +140,32 @@ http.createServer(function(req, res){
 	} else if(requrl[0] == 'loop'){
 		res.writeHead(200, {'Content-Type': 'text/json'});
 		var givenID = requrl[1];
-		var currentPlayer = world1.getPlayerByID(givenID);
+		var currentPlayer = currentWorld.getPlayerByID(givenID);
 		if(typeof(currentPlayer) == "undefined"){
 			res.writeHead(401);
 		} else{
-			currentPlayer.updateLocation(world1, requrl[2], requrl[3]);
+			currentPlayer.see();
+			currentPlayer.updateLocation(currentWorld, requrl[2], requrl[3]);
 			res.writeHead(200, {'Content-Type': 'text/json'});
-			res.write(JSON.stringify(world1.getPlayersInArea(currentPlayer.getViewArea())));
+			res.write('{"world" : {"id": ' + currentWorld.id + ', "width" : ' + currentWorld.width + ', "height": ' + currentWorld.height + '}, "players" : ' + JSON.stringify(currentWorld.getPlayersInArea(currentPlayer.getViewArea())) + '}');
 		}
 	} else{
 		res.writeHead(404);
 	}
 	res.end();
 }).listen(8080);
+
+setInterval(function(){
+	console.log("Current number of players: " + Object.keys(currentWorld.onlinePlayers).length);
+}, 5000);
+
+setInterval(function(){
+	for(var p in currentWorld.onlinePlayers){
+		if(Date.now() - currentWorld.onlinePlayers[p].lastSeen > PLAYER_TIMEOUT){
+			currentWorld.setUserOffline(currentWorld.onlinePlayers[p].id);
+		}
+	}
+}, 1000);
 
 function s4() {
   return Math.floor((1 + Math.random()) * 0x10000)
