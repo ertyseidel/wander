@@ -1,5 +1,5 @@
 
-var currentUser = false;
+var currentPlayer = false;
 var currentWorld = false;
 var updateData = false;
 var context = false;
@@ -67,7 +67,7 @@ window.onload = function(){
 		GET('/createuser', function(userData){
 			userData = JSON.parse(userData);
 			document.cookie = "user=" + encodeURIComponent(JSON.stringify(userData));
-			currentUser = userData;
+			currentPlayer = userData;
 		});
 	} else{
 		GET('/checkuser/' + userData.id, function(checkUserData){
@@ -76,10 +76,10 @@ window.onload = function(){
 				GET('/createuser', function(newUserData){
 					newUserData = JSON.parse(newUserData);
 					document.cookie = "user=" + encodeURIComponent(JSON.stringify(newUserData));
-					currentUser = newUserData;
+					currentPlayer = newUserData;
 				});
 			} else{
-				currentUser = userData;
+				currentPlayer = userData;
 			}
 		});
 	}
@@ -95,7 +95,7 @@ window.onload = function(){
 		keys[evt.keyCode] = false;
 	};
 	loadingLoop = setInterval(function(){
-		if(typeof(currentUser) != 'boolean'){
+		if(typeof(currentPlayer) != 'boolean'){
 			queueAnimation(new AnimationText("Welcome!"));
 			clearInterval(loadingLoop);
 			updateIsIt();
@@ -105,39 +105,82 @@ window.onload = function(){
 	}, 100);
 }
 
+updatePlayerPosition = function(player){
+	//update velocity
+	if (keys[87] || keys[38]){ //up
+		player.vy -= player.acceleration;
+		if(player.vy < -1 * player.speed){
+			player.vy = -1 * player.speed;
+		}
+	}
+	if(keys[65] || keys[37]){ //left
+		player.vx -= player.acceleration;
+		if(player.vx < -1 * player.speed){
+			player.vx = -1 * player.speed;
+		}
+	}
+
+	if (keys[83] || keys[40]){ //down
+		player.vy += player.acceleration;
+		if(player.vy > player.speed){
+			player.vy = player.speed;
+		}
+	}
+	if (keys[68] || keys[39]){ //right
+		player.vx += player.acceleration;
+		if(player.vx > 1 * player.speed){
+			player.vx = 1 * player.speed;
+		}
+	}
+	//apply friction
+	player.vx *= player.friction;
+	if(Math.abs(player.vx) < .01) player.vx = 0;
+	player.vy *= player.friction;
+	if(Math.abs(player.vy) < .01) player.vy = 0;
+	//update location
+	player.y += player.vy;
+	player.x += player.vx;
+	//check bounds
+	if(player.x < 0) player.x = 0;
+	if(player.x > currentWorld.width) player.x = currentWorld.width;
+	if(player.y < 0) player.y = 0;
+	if(player.y > currentWorld.height) player.y = currentWorld.height;
+}
+
 function localLoop(){
 	if(typeof(updateData) != 'boolean'){
 		if(typeof(currentWorld) == 'boolean') currentWorld = updateData.world;
 		//set up world
 		if(currentWorld.id != updateData.world.id){
-			console.log("NEW GAME!")
+			queueAnimation(new AnimationText("NEW GAME!"));
 			currentWorld = updateData.world;
 		}
 		if(currentWorld.width != context.canvas.width) context.canvas.width = currentWorld.width;
 		if(currentWorld.height != context.canvas.height) context.canvas.height = currentWorld.height;
-		//update location
-		currentUser.y -= currentUser.speed * (keys[87] || keys[38]); //up
-		currentUser.x -= currentUser.speed * (keys[65] || keys[37]); //left
-		currentUser.y += currentUser.speed * (keys[83] || keys[40]); //down
-		currentUser.x += currentUser.speed * (keys[68] || keys[39]); //right
+		//update user position
+		updatePlayerPosition(currentPlayer);
 		//draw
 		context.fillStyle="#000000";
 		context.fillRect(0, 0, currentWorld.width, currentWorld.height);
 		context.fillStyle="#ffffff";
-		context.fillRect(currentUser.x - currentUser.viewDist, currentUser.y - currentUser.viewDist, currentUser.viewDist * 2, currentUser.viewDist * 2);
+		context.fillRect(currentPlayer.x - currentPlayer.viewDist, currentPlayer.y - currentPlayer.viewDist, currentPlayer.viewDist * 2, currentPlayer.viewDist * 2);
 		for(var key in updateData.players){		
-			if(updateData.players[key].id == currentUser.id){
-				if(currentUser.isIt != updateData.players[key].isIt){
+			if(updateData.players[key].id == currentPlayer.id){
+				if(currentPlayer.isIt != updateData.players[key].isIt){
 					updateIsIt(updateData.players[key].isIt);
 				}
 			} else {
 				var p = updateData.players[key];
+				//prediction
+				if(p.vx != 0) p.x -= -1 * parseFloat(p.vx) * p.speed;
+				if(p.vy != 0) p.y -= -1 * parseFloat(p.vy) * p.speed;
+				//draw other players
 				context.fillStyle= p.isIt ? "#FF0000" : "#00FF00";
 				context.fillRect(p.x - 5, p.y - 5, 10, 10);
 			}
 		}
-		context.fillStyle = currentUser.isIt ? "#550000" : "#005500";
-		context.fillRect(currentUser.x - 5, currentUser.y - 5, 10, 10);
+		context.fillStyle = currentPlayer.isIt ? "#550000" : "#005500";
+		context.fillRect(currentPlayer.x - 5, currentPlayer.y - 5, 10, 10);
 		//draw texts
 		if(animationsQueue.length > 0){
 			animationsQueue[0].drawFtn(context);
@@ -148,12 +191,12 @@ function localLoop(){
 }
 
 function updateIsIt(isIt){
-	currentUser.isIt = isIt;
-	if(currentUser.isIt){
-		if(currentUser.isIt) queueAnimation(new AnimationText('You Are It!'));
+	currentPlayer.isIt = isIt;
+	if(currentPlayer.isIt){
+		if(currentPlayer.isIt) queueAnimation(new AnimationText('You Are It!'));
 		document.getElementById('isIt').style.display = "block";
 	} else{
-		if(currentUser.isIt) queueAnimation(new AnimationText('You Are No Longer It!'));
+		if(currentPlayer.isIt) queueAnimation(new AnimationText('You Are No Longer It!'));
 		document.getElementById('isIt').style.display = "none";
 	}
 }
@@ -161,11 +204,13 @@ function updateIsIt(isIt){
 function updateLoop(){
 	if(hasReturned){
 		hasReturned = false;
-		GET('loop/' + currentUser.id + "/" + currentUser.x + "/" + currentUser.y, function(data){
+		var vx = (-1 * (keys[65] || keys[37])) + (1 * (keys[68] || keys[39]));
+		var vy = (-1 * (keys[87] || keys[38])) + (1 * (keys[83] || keys[40]));
+		GET('loop/' + currentPlayer.id + "/" + currentPlayer.x + "/" + currentPlayer.y + "/" + vx + "/" + vy, function(data){
 			hasReturned = true;
 			updateData = JSON.parse(data);
 		});
-		document.cookie = "user=" + encodeURIComponent(JSON.stringify(currentUser));
+		document.cookie = "user=" + encodeURIComponent(JSON.stringify(currentPlayer));
 	}
 }
 

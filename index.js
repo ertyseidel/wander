@@ -68,11 +68,15 @@ function newGame(){
 	currentWorld = newWorld;
 }
 
-function Player(startx, starty, viewDist, speed, isIt){
+function Player(startx, starty, viewDist, speed, acceleration, friction, isIt){
 	this.x = startx;
 	this.y = starty;
+	this.vx = 0;
+	this.vy = 0;
 	this.viewDist = viewDist;
 	this.speed = speed;
+	this.acceleration = acceleration;
+	this.friction = friction;
 	this.id = guid();
 	this.lastSeen = Date.now();
 	this.isIt = isIt;
@@ -97,18 +101,24 @@ function Player(startx, starty, viewDist, speed, isIt){
 		return JSON.stringify({
 			"x": this.x,
 			"y": this.y,
+			"vx": this.vx,
+			"vy": this.vy,
 			"id": this.id,
 			"viewDist": this.viewDist,
 			"speed": this.speed,
+			"acceleration": this.acceleration,
+			"friction": this.friction,
 			"isIt": this.isIt
 		});
 	}
 
-	this.updateLocation = function(world, newx, newy){
+	this.updateLocation = function(world, newx, newy, vx, vy){
 		if(newx < 0) newx = 0;
 		if(newy < 0) newy = 0;
 		if(newx > world.width) newx = world.width;
 		if(newy > world.height) newy = world.height;
+		this.vx = vx;
+		this.vy = vy;
 		this.x = newx;
 		this.y = newy;
 	}
@@ -121,7 +131,7 @@ http.createServer(function(req, res){
 		res.writeHead(200, {'Content-Type': 'text/html'});
 		res.write(indexPage);
 	} else if(requrl[0] == 'createuser'){
-		var newPlayer = new Player(parseInt(Math.random() * WORLD_WIDTH), parseInt(Math.random() * WORLD_HEIGHT), 75, 1.5, false);
+		var newPlayer = new Player(parseInt(Math.random() * WORLD_WIDTH), parseInt(Math.random() * WORLD_HEIGHT), 75, 1.5, .3, .8, false);
 		currentWorld.addPlayer(newPlayer);
 		res.writeHead(200, {'Content-Type': 'text/json'});
 		res.write(newPlayer.toString());
@@ -145,7 +155,7 @@ http.createServer(function(req, res){
 			res.writeHead(401);
 		} else{
 			currentPlayer.see();
-			currentPlayer.updateLocation(currentWorld, requrl[2], requrl[3]);
+			currentPlayer.updateLocation(currentWorld, requrl[2], requrl[3], requrl[4], requrl[5]); //world, x, y, vx, vy
 			res.writeHead(200, {'Content-Type': 'text/json'});
 			res.write('{"world" : {"id": ' + currentWorld.id + ', "width" : ' + currentWorld.width + ', "height": ' + currentWorld.height + '}, "players" : ' + JSON.stringify(currentWorld.getPlayersInArea(currentPlayer.getViewArea())) + '}');
 		}
