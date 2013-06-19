@@ -1,4 +1,3 @@
-
 var currentPlayer = false;
 var currentWorld = false;
 var updateData = false;
@@ -16,43 +15,7 @@ var keys = {
 var loadingLoop = null;
 var hasReturned = true;
 
-var animationsQueue = [];
-function AnimationText(text, callback, size, x, y, color, holdDuration, fadeDuration){
-	this.callback = callback;
-	this.text = text;
-	this.size = typeof(size) == 'undefined' ? 30 : size;
-	this.x = typeof(x) == 'undefined' ? 100 : x;
-	this.y = typeof(y) == 'undefined' ? 150 : y;
-	this.color = typeof(color) == 'undefined' ? "FF0000" : color;
-	this.fadeDuration = typeof(fadeDuration == 'undefined') ? 60 : fadeDuration;
-	this.holdDuration = typeof(holdDuration == 'undefined') ? 60 : holdDuration;
-	this.current = this.holdDuration + this.fadeDuration;
-	this.drawFtn = function(context){
-		context.font = "bold " + this.size + "pt Calibri";
-		if(this.current < this.fadeDuration){
-			context.fillStyle = toFadeColor(this.color, this.current / this.fadeDuration);
-		} else{
-			context.fillStyle = this.color;
-		}
-		context.fillText(this.text, this.x, this.y);
-		if(--this.current < 0){
-			animationsQueue.shift();
-			if(typeof(callback) == 'function') callback.apply(this);
-		}
-	}
-}
-
-function queueAnimation(anim){
-	animationsQueue.push(anim);
-}
-
-function toFadeColor(color, opacity){
-	color = color.substring(1); // strip "#";
-	var r = parseInt(parseInt(color.substring(0,2), 16) * opacity);
-	var g = parseInt(parseInt(color.substring(2,4), 16) * opacity);
-	var b = parseInt(parseInt(color.substring(4,6), 16) * opacity);
-	return "rgb(" + r + "," + g + "," + b + ")";
-}
+var QUERY_SPEED = 100;
 
 //Set up window animation request frame (x-browser compatibility)
 (function() {
@@ -60,26 +23,27 @@ function toFadeColor(color, opacity){
  	window.requestAnimationFrame = requestAnimationFrame;
 })();
 
+
 window.onload = function(){
 	//Set up the user object and make sure it is current and valid
-	var userData = retrieveUserCookieData();
-	if(typeof(userData) == 'undefined'){
-		GET('/createuser', function(userData){
-			userData = JSON.parse(userData);
-			document.cookie = "user=" + encodeURIComponent(JSON.stringify(userData));
-			currentPlayer = userData;
+	var playerData = retrievePlayerCookieData();
+	if(typeof(playerData) == 'undefined'){
+		GET('/createuser', function(playerData){
+			playerData = JSON.parse(playerData);
+			document.cookie = "user=" + encodeURIComponent(playerData.id);
+			currentPlayer = playerData;
 		});
 	} else{
-		GET('/checkuser/' + userData.id, function(checkUserData){
-			checkUserData = JSON.parse(checkUserData);
-			if(checkUserData.status == 'false'){
-				GET('/createuser', function(newUserData){
-					newUserData = JSON.parse(newUserData);
-					document.cookie = "user=" + encodeURIComponent(JSON.stringify(newUserData));
-					currentPlayer = newUserData;
+		GET('/checkuser/' + playerData, function(checkPlayerData){
+			checkPlayerData = JSON.parse(checkPlayerData);
+			if(checkPlayerData.status == 'false'){
+				GET('/createuser', function(newPlayerData){
+					newPlayerData = JSON.parse(newPlayerData);
+					document.cookie = "user=" + encodeURIComponent(newPlayerData.id);
+					currentPlayer = newPlayerData;
 				});
 			} else{
-				currentPlayer = userData;
+				currentPlayer = playerData;
 			}
 		});
 	}
@@ -99,52 +63,10 @@ window.onload = function(){
 			queueAnimation(new AnimationText("Welcome!"));
 			clearInterval(loadingLoop);
 			updateIsIt();
-			setInterval(updateLoop, 50);
+			setInterval(updateLoop, QUERY_SPEED);
 			requestAnimationFrame(localLoop);
 		}
 	}, 100);
-}
-
-updatePlayerPosition = function(player){
-	//update velocity
-	if (keys[87] || keys[38]){ //up
-		player.vy -= player.acceleration;
-		if(player.vy < -1 * player.speed){
-			player.vy = -1 * player.speed;
-		}
-	}
-	if(keys[65] || keys[37]){ //left
-		player.vx -= player.acceleration;
-		if(player.vx < -1 * player.speed){
-			player.vx = -1 * player.speed;
-		}
-	}
-
-	if (keys[83] || keys[40]){ //down
-		player.vy += player.acceleration;
-		if(player.vy > player.speed){
-			player.vy = player.speed;
-		}
-	}
-	if (keys[68] || keys[39]){ //right
-		player.vx += player.acceleration;
-		if(player.vx > 1 * player.speed){
-			player.vx = 1 * player.speed;
-		}
-	}
-	//apply friction
-	player.vx *= player.friction;
-	if(Math.abs(player.vx) < .01) player.vx = 0;
-	player.vy *= player.friction;
-	if(Math.abs(player.vy) < .01) player.vy = 0;
-	//update location
-	player.y += player.vy;
-	player.x += player.vx;
-	//check bounds
-	if(player.x < 0) player.x = 0;
-	if(player.x > currentWorld.width) player.x = currentWorld.width;
-	if(player.y < 0) player.y = 0;
-	if(player.y > currentWorld.height) player.y = currentWorld.height;
 }
 
 function localLoop(){
@@ -158,7 +80,9 @@ function localLoop(){
 		if(currentWorld.width != context.canvas.width) context.canvas.width = currentWorld.width;
 		if(currentWorld.height != context.canvas.height) context.canvas.height = currentWorld.height;
 		//update user position
-		updatePlayerPosition(currentPlayer);
+		currentPlayer.keyx = (-1 * (keys[65] || keys[37])) + (1 * (keys[68] || keys[39]));
+		currentPlayer.keyy = (-1 * (keys[87] || keys[38])) + (1 * (keys[83] || keys[40]));
+		movePlayer(currentPlayer);
 		//draw
 		context.fillStyle="#000000";
 		context.fillRect(0, 0, currentWorld.width, currentWorld.height);
@@ -172,8 +96,7 @@ function localLoop(){
 			} else {
 				var p = updateData.players[key];
 				//prediction
-				if(p.vx != 0) p.x -= -1 * parseFloat(p.vx) * p.speed;
-				if(p.vy != 0) p.y -= -1 * parseFloat(p.vy) * p.speed;
+				movePlayer(p);
 				//draw other players
 				context.fillStyle= p.isIt ? "#FF0000" : "#00FF00";
 				context.fillRect(p.x - 5, p.y - 5, 10, 10);
@@ -204,23 +127,20 @@ function updateIsIt(isIt){
 function updateLoop(){
 	if(hasReturned){
 		hasReturned = false;
-		var vx = (-1 * (keys[65] || keys[37])) + (1 * (keys[68] || keys[39]));
-		var vy = (-1 * (keys[87] || keys[38])) + (1 * (keys[83] || keys[40]));
-		GET('loop/' + currentPlayer.id + "/" + currentPlayer.x + "/" + currentPlayer.y + "/" + vx + "/" + vy, function(data){
+		GET('loop/' + currentPlayer.id + "/" + currentPlayer.x + "/" + currentPlayer.y + "/" + currentPlayer.vx + "/" + currentPlayer.vy + "/" + currentPlayer.keyx + "/" + currentPlayer.keyy, function(data){
 			hasReturned = true;
 			updateData = JSON.parse(data);
 		});
-		document.cookie = "user=" + encodeURIComponent(JSON.stringify(currentPlayer));
 	}
 }
 
-function retrieveUserCookieData(){
+function retrievePlayerCookieData(){
 	allCookies = document.cookie;
 	allCookies = document.cookie.split(";");
 	for(var i = 0; i < allCookies.length; i++){
 		var cook = allCookies[i].split("=");
 		if(cook[0].trim() == 'user'){
-			return JSON.parse(decodeURIComponent(cook[1]));
+			return decodeURIComponent(cook[1]);
 		}
 	}
 }
