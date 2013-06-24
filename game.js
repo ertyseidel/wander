@@ -119,10 +119,10 @@ function localLoop(){
 function updateIsIt(isIt){
 	currentPlayer.isIt = isIt;
 	if(currentPlayer.isIt){
-		if(currentPlayer.isIt) queueAnimation(new AnimationText('You Are It!'));
+		if(currentPlayer.isIt) queueAnimation(new AnimationText('You are infected! Eat Brains!'));
 		document.getElementById('isIt').style.display = "block";
 	} else{
-		if(currentPlayer.isIt) queueAnimation(new AnimationText('You Are No Longer It!'));
+		if(currentPlayer.isIt) queueAnimation(new AnimationText('You return to your normal human form...'));
 		document.getElementById('isIt').style.display = "none";
 	}
 }

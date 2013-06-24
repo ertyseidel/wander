@@ -108,9 +108,6 @@ function Player(startx, starty, viewDist, speed, acceleration, friction, isIt){
 	};
 
 	this.setIsIt = function(isIt){
-		if(this.isIt && !isIt && !this.isImmune()){
-			this.immunity = getServerTime() + PLAYER_IMMUNITY;
-		}
 		this.isIt = isIt;
 	};
 
@@ -212,9 +209,9 @@ io.sockets.on('connection', function(sock){
 					var a = currentWorld.getPlayerById(collision.collision[0]);
 					var b = currentWorld.getPlayerById(collision.collision[1]);
 					if(typeof(a) != 'undefined' && typeof(b) != 'undefined'){
-						if((a.isIt && !b.isImmune()) || (b.isIt && !a.isImmune())){
-							a.setIsIt(!a.isIt);
-							b.setIsIt(!b.isIt);
+						if(a.isIt != b.isIt){
+							a.setIsIt(true);
+							b.setIsIt(true);
 						}
 					}
 				}

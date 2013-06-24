@@ -1,6 +1,6 @@
 exports.Collider = function(options){
 	this._firstStep = 0;
-	this._stepSize = typeof(options.stepSize == 'number') ? parseInt(options.stepSize) : 5;
+	this._stepSize = typeof(options.stepSize == 'number') ? parseInt(options.stepSize, 10) : 5;
 	this._numPlayers = 0;
 	if(typeof(options.movementFunction != 'function')){
 		this.movementFunction  = function(startPosition, endPosition, startPositionTime, endPositionTime, interpolationTime){
@@ -35,7 +35,7 @@ exports.Collider = function(options){
 			this._firstStep = checkStep;
 		}
 		this._numPlayers ++;
-	}
+	};
 
 	this.removePlayer = function(time, playerId){
 		this._numPlayers --;
