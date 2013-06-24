@@ -15,12 +15,14 @@ var keys = {
 var loadingLoop = null;
 var hasReturned = true;
 
-var QUERY_SPEED = 100;
+var socket = io.connect('http://192.168.1.189');
+
+var QUERY_SPEED = 25;
 
 //Set up window animation request frame (x-browser compatibility)
 (function() {
 	var requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
- 	window.requestAnimationFrame = requestAnimationFrame;
+	window.requestAnimationFrame = requestAnimationFrame;
 })();
 
 
@@ -63,14 +65,15 @@ window.onload = function(){
 			queueAnimation(new AnimationText("Welcome!"));
 			clearInterval(loadingLoop);
 			updateIsIt();
-			setInterval(updateLoop, QUERY_SPEED);
+			emitSocketLoop();
 			requestAnimationFrame(localLoop);
 		}
 	}, 100);
-}
+};
 
 function localLoop(){
 	if(typeof(updateData) != 'boolean'){
+		if(typeof(updateData) === 'string') updateData = JSON.parse(updateData);
 		if(typeof(currentWorld) == 'boolean') currentWorld = updateData.world;
 		//set up world
 		if(currentWorld.id != updateData.world.id){
@@ -88,7 +91,7 @@ function localLoop(){
 		context.fillRect(0, 0, currentWorld.width, currentWorld.height);
 		context.fillStyle="#ffffff";
 		context.fillRect(currentPlayer.x - currentPlayer.viewDist, currentPlayer.y - currentPlayer.viewDist, currentPlayer.viewDist * 2, currentPlayer.viewDist * 2);
-		for(var key in updateData.players){		
+		for(var key in updateData.players){
 			if(updateData.players[key].id == currentPlayer.id){
 				if(currentPlayer.isIt != updateData.players[key].isIt){
 					updateIsIt(updateData.players[key].isIt);
@@ -124,15 +127,22 @@ function updateIsIt(isIt){
 	}
 }
 
-function updateLoop(){
-	if(hasReturned){
-		hasReturned = false;
-		GET('loop/' + currentPlayer.id + "/" + currentPlayer.x + "/" + currentPlayer.y + "/" + currentPlayer.vx + "/" + currentPlayer.vy + "/" + currentPlayer.keyx + "/" + currentPlayer.keyy, function(data){
-			hasReturned = true;
-			updateData = JSON.parse(data);
-		});
-	}
+function emitSocketLoop(){
+	socket.emit('loop', {
+		"id": currentPlayer.id,
+		"x": currentPlayer.x,
+		"y": currentPlayer.y,
+		"vx": currentPlayer.vx,
+		"vy": currentPlayer.vy,
+		"keyx": currentPlayer.keyx,
+		"keyy": currentPlayer.keyy
+	});
 }
+
+socket.on('loop', function(data){
+	updateData = data;
+	emitSocketLoop();
+});
 
 function retrievePlayerCookieData(){
 	allCookies = document.cookie;

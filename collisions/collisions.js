@@ -7,8 +7,8 @@ exports.Collider = function(options){
 			return{
 				'x': (endPosition.x - startPosition.x) * (interpolationTime / (endPositionTime + startPositionTime)),
 				'y': (endPosition.y - startPosition.y) * (interpolationTime / (endPositionTime + startPositionTime))
-			}
-		}
+			};
+		};
 	}
 	if(typeof(options.collisionFunction) != 'function') console.log("ERROR: No collision function defined for Collider!");
 	this.collisionFunction = options.collisionFunction;
@@ -16,8 +16,13 @@ exports.Collider = function(options){
 
 	//playerdata comes in with the form {playerId: <player id>, x: <player x>, y: <player y>}
 	this.addPlayer = function(time, playerData){
+		if(!(typeof(playerData.x) === 'number' && typeof(playerData.y === 'number'))){
+			console.log("Error: playerData is not numbers!");
+			return;
+		}
 		var currStep = time - (time % this._stepSize);
 		var checkStep = currStep;
+
 		if(this._numPlayers > 0){
 			while(typeof(this._updateTable[checkStep]) == 'undefined' && checkStep >= this._firstStep){
 				this._updateTable[checkStep] = {num: 1, tot: this._numPlayers + 1, data: {}};
@@ -43,13 +48,13 @@ exports.Collider = function(options){
 			checkStep -= this._stepSize;
 		}
 		//if there are no players, just reset the game and return
-		if(this._numPlayers == 0){
+		if(this._numPlayers === 0){
 			this._firstStep = 0;
 			this._updateTable = {};
 			return;
 		}
 		//Otherwise, step forward through the entire table and remove now-full rows
-		var checkStep = this._firstStep;
+		checkStep = this._firstStep;
 		while(checkStep < currStep && typeof(this._updateTable[checkStep]) != 'undefined'){
 			if(this._updateTable[checkStep].num >= this._updateTable[checkStep].tot && typeof(this._updateTable[checkStep - this._stepSize]) != 'undefined' && this._updateTable[checkStep - this._stepSize].num >= this._updateTable[checkStep  - this._stepSize].tot){
 				delete this._updateTable[checkStep - this._stepSize];
@@ -57,7 +62,7 @@ exports.Collider = function(options){
 			}
 			checkStep += this._stepSize;
 		}
-	}
+	};
 
 	/*
 		takes the user update data in the form
@@ -66,6 +71,10 @@ exports.Collider = function(options){
 		(good luck figuring that out!)
 	*/
 	this.handleUpdate = function(time, updateData){
+		if(!(typeof(updateData.x) === 'number' && typeof(updateData.y === 'number'))){
+			console.log("Error: updateData is not numbers!");
+			return;
+		}
 		//figure out which step we're on		
 		var currStep = time - (time % this._stepSize);
 		var beginStep = currStep;
@@ -102,7 +111,7 @@ exports.Collider = function(options){
 					"playerId": updateData.playerId,
 					"x": this._updateTable[beginStep].data[updateData.playerId].x,
 					"y": this._updateTable[beginStep].data[updateData.playerId].y
-				}
+				};
 				this._updateTable[interpolationStep].data[updateData.playerId] = this.movementFunction(formattedData, updateData, beginStep, currStep, interpolationStep);
 				this._updateTable[interpolationStep].num ++; //we have added some data to a row
 			}
@@ -112,8 +121,8 @@ exports.Collider = function(options){
 					var otherPlayerData = this._updateTable[interpolationStep].data[otherPlayer]; //create a temp variable
 					otherPlayerData.playerId = otherPlayer; //so that we can append the player's id datum
 					var collision = this.collisionFunction(updateData, otherPlayerData); //check for a collision. Collision data if there was, false otherwise
-					if(collision != false){ //if there is a collison
-						collisions.push({ 
+					if(collision !== false){ //if there is a collison
+						collisions.push({
 							'step' : interpolationStep,
 							'collision': collision
 						}); //push that collision data, including the time when the collision happened, onto an array
@@ -131,5 +140,5 @@ exports.Collider = function(options){
 			interpolationStep += this._stepSize; //go to the next row
 		}
 		return collisions;
-	}
-}
+	};
+};
