@@ -6,7 +6,7 @@ function AnimationText(text, callback, size, x, y, color, holdDuration, fadeDura
 	this.size = typeof(size) == 'undefined' ? 30 : size;
 	this.x = typeof(x) == 'undefined' ? 100 : x;
 	this.y = typeof(y) == 'undefined' ? 150 : y;
-	this.color = typeof(color) == 'undefined' ? "FF0000" : color;
+	this.color = typeof(color) == 'undefined' ? "#FF0000" : color;
 	this.fadeDuration = typeof(fadeDuration == 'undefined') ? 60 : fadeDuration;
 	this.holdDuration = typeof(holdDuration == 'undefined') ? 60 : holdDuration;
 	this.current = this.holdDuration + this.fadeDuration;

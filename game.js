@@ -13,11 +13,10 @@ var keys = {
 	39: false
 };
 var loadingLoop = null;
-var hasReturned = true;
+
+var emitData = true;
 
 var socket = io.connect('http://192.168.1.189');
-
-var QUERY_SPEED = 25;
 
 //Set up window animation request frame (x-browser compatibility)
 (function() {
@@ -45,7 +44,7 @@ window.onload = function(){
 					currentPlayer = newPlayerData;
 				});
 			} else{
-				currentPlayer = playerData;
+				currentPlayer = checkPlayerData;
 			}
 		});
 	}
@@ -60,11 +59,13 @@ window.onload = function(){
 		evt = evt || window.event;
 		keys[evt.keyCode] = false;
 	};
+	console.log("A");
 	loadingLoop = setInterval(function(){
 		if(typeof(currentPlayer) != 'boolean'){
 			queueAnimation(new AnimationText("Welcome!"));
 			clearInterval(loadingLoop);
-			updateIsIt();
+			updateIsIt(currentPlayer.isIt);
+			emitData = true;
 			emitSocketLoop();
 			requestAnimationFrame(localLoop);
 		}
@@ -117,12 +118,13 @@ function localLoop(){
 }
 
 function updateIsIt(isIt){
+	if(typeof(isIt) == 'undefined') return;
 	currentPlayer.isIt = isIt;
 	if(currentPlayer.isIt){
-		if(currentPlayer.isIt) queueAnimation(new AnimationText('You are infected! Eat Brains!'));
+		queueAnimation(new AnimationText('You are infected! Eat Brains!'));
 		document.getElementById('isIt').style.display = "block";
 	} else{
-		if(currentPlayer.isIt) queueAnimation(new AnimationText('You return to your normal human form...'));
+		queueAnimation(new AnimationText('You are a human...'));
 		document.getElementById('isIt').style.display = "none";
 	}
 }
@@ -141,7 +143,21 @@ function emitSocketLoop(){
 
 socket.on('loop', function(data){
 	updateData = data;
-	emitSocketLoop();
+	if(emitData){
+		setTimeout(emitSocketLoop, 16);
+	}
+});
+
+socket.on('fail', function(data){
+	console.log("FAIL");
+	emitData = false;
+	GET('/createuser', function(playerData){
+		playerData = JSON.parse(playerData);
+		document.cookie = "user=" + encodeURIComponent(playerData.id);
+		currentPlayer = playerData;
+		emitData = true;
+		emitSocketLoop();
+	});
 });
 
 function retrievePlayerCookieData(){
@@ -157,7 +173,7 @@ function retrievePlayerCookieData(){
 
 function GET(url, callback){
 	var oReq = new XMLHttpRequest();
-	oReq.onload = function(){callback.apply(this, [this.responseText])};
+	oReq.onload = function(){callback.apply(this, [this.responseText]);};
 	oReq.open("get", url, true);
 	oReq.send();
 }

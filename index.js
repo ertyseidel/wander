@@ -14,7 +14,7 @@ var indexPage = fs.readFileSync('./index.html', {"encoding": "utf-8"});
 
 var collisionEngine = new Collisions({
 	stepSize: 5,
-	//collisionFunction(playerOneData, playerTwoData); 
+	//collisionFunction(playerOneData, playerTwoData);
 	collisionFunction: function(player1, player2){
 		if (player1.x + 5 < player2.x - 5 || player1.y + 5 < player2.y - 5 || player2.x + 5 < player1.x - 5 || player2.y + 5 < player1.y - 5){
 			return false;
@@ -32,6 +32,7 @@ function World(width, height, id){
 	this.offlinePlayers = [];
 
 	this.addPlayer = function(newPlayer){
+		console.log("Game World: Adding Player");
 		this.onlinePlayers[newPlayer.id] = newPlayer;
 		if(Object.keys(this.onlinePlayers).length == 1) this.onlinePlayers[newPlayer.id].setIsIt(true);
 		collisionEngine.addPlayer(getServerTime(), {playerId: newPlayer.id, x: newPlayer.x, y: newPlayer.y});
@@ -42,6 +43,7 @@ function World(width, height, id){
 	};
 
 	this.setUserOffline = function(userID){
+		console.log("Game World: Marking Player as Offline");
 		var temp = this.onlinePlayers[userID];
 		this.offlinePlayers.push(temp);
 		delete this.onlinePlayers[userID];
@@ -52,6 +54,7 @@ function World(width, height, id){
 	};
 
 	this.setUserOnline = function(userID){
+		console.log("Game World: Marking Player as Online");
 		var temp = this.offlinePlayers[userID];
 		this.onlinePlayers.push(temp);
 		delete this.offlinePlayers[userID];
@@ -154,21 +157,25 @@ var app = http.createServer(function(req, res){
 		//startx, starty, viewDist, speed, acceleration, friction, isIt
 		var newPlayer = new Player(parseInt(Math.random() * WORLD_WIDTH, 10), parseInt(Math.random() * WORLD_HEIGHT, 10), 75, 3, 0.3, 0.8, false);
 		currentWorld.addPlayer(newPlayer);
+		console.log("Creating User With ID: " + newPlayer.id);
 		res.writeHead(200, {'Content-Type': 'text/json'});
 		res.write(JSON.stringify(newPlayer));
 	} else if(requrl[0] == 'checkuser'){
 		res.writeHead(200, {'Content-Type': 'text/json'});
-		if(typeof(currentWorld.onlinePlayers[requrl[1]]) != 'undefined'){
-			res.write(JSON.stringify({
-				"status": true,
-				"info": currentWorld.onlinePlayers[requrl[1]]
-			}));
-		} else if(typeof(currentWorld.offlinePlayers[requrl[1]]) != 'undefined') {
-			res.write(JSON.stringify({
-				"status": true,
-				"info": currentWorld.offlinePlayers[requrl[1]]
-			}));
+		console.log("Checking User With ID: " + requrl[1]);
+		if(typeof(currentWorld.onlinePlayers[requrl[1]]) !== 'undefined'){
+			console.log("Found user, ONLINE");
+			res.write(JSON.stringify(
+				currentWorld.onlinePlayers[requrl[1]]
+			));
+		} else if(typeof(currentWorld.offlinePlayers[requrl[1]]) !== 'undefined') {
+			console.log("Found user, OFFLINE");
+			currentWorld.setUserOnline(requrl[1]);
+			res.write(JSON.stringify(
+				currentWorld.offlinePlayers[requrl[1]]
+			));
 		} else{
+			console.log("Did not find user!");
 			res.write(JSON.stringify({"status": "false"}));
 		}
 	} else if(requrl[0] == 'game.js'){
@@ -186,14 +193,13 @@ var app = http.createServer(function(req, res){
 	res.end();
 }).listen(8080);
 
-var io = socket.listen(app, { log: false });
+var io = socket.listen(app);
 
 io.sockets.on('connection', function(sock){
-	sock.on('loop', function(data){		
+	sock.on('loop', function(data){
 		var givenID = data.id;
 		var currentPlayer = currentWorld.getPlayerById(givenID);
 		if(typeof(currentPlayer) == "undefined"){
-			console.log("FAIL: CURRENT PLAYER UNDEFINED");
 			sock.emit('fail', '{"user": "undefined"}');
 		} else{
 			currentPlayer.see();

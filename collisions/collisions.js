@@ -16,6 +16,7 @@ exports.Collider = function(options){
 
 	//playerdata comes in with the form {playerId: <player id>, x: <player x>, y: <player y>}
 	this.addPlayer = function(time, playerData){
+		console.log("Collision Engine: Adding Player");
 		if(!(typeof(playerData.x) === 'number' && typeof(playerData.y === 'number'))){
 			console.log("Error: playerData is not numbers!");
 			return;
@@ -23,21 +24,15 @@ exports.Collider = function(options){
 		var currStep = time - (time % this._stepSize);
 		var checkStep = currStep;
 
-		if(this._numPlayers > 0){
-			while(typeof(this._updateTable[checkStep]) == 'undefined' && checkStep >= this._firstStep){
-				this._updateTable[checkStep] = {num: 1, tot: this._numPlayers + 1, data: {}};
-				this._updateTable[checkStep].data[playerData.playerId] = {'x': playerData.x, 'y': playerData.y};
-				checkStep -= this._stepSize;
-			}
-		} else{
-			this._updateTable[checkStep] = {num: 1, tot: 1, data: {}};
-			this._updateTable[checkStep].data[playerData.playerId] = {'x': playerData.x, 'y': playerData.y};
-			this._firstStep = checkStep;
-		}
+		this._updateTable[checkStep] = {num: 1, tot: 1, data: {}};
+		this._updateTable[checkStep].data[playerData.playerId] = {'x': playerData.x, 'y': playerData.y};
+		this._firstStep = checkStep;
+
 		this._numPlayers ++;
 	};
 
 	this.removePlayer = function(time, playerId){
+		console.log("Collision Engine: Removing Player");
 		this._numPlayers --;
 		var currStep = time - (time % this._stepSize);
 		var checkStep = currStep;
@@ -55,10 +50,12 @@ exports.Collider = function(options){
 		}
 		//Otherwise, step forward through the entire table and remove now-full rows
 		checkStep = this._firstStep;
-		while(checkStep < currStep && typeof(this._updateTable[checkStep]) != 'undefined'){
-			if(this._updateTable[checkStep].num >= this._updateTable[checkStep].tot && typeof(this._updateTable[checkStep - this._stepSize]) != 'undefined' && this._updateTable[checkStep - this._stepSize].num >= this._updateTable[checkStep  - this._stepSize].tot){
-				delete this._updateTable[checkStep - this._stepSize];
-				this._firstStep = checkStep;
+		while(checkStep < currStep){
+			if(typeof(this._updateTable[checkStep]) != 'undefined'){
+				if(this._updateTable[checkStep].num >= this._updateTable[checkStep].tot && typeof(this._updateTable[checkStep - this._stepSize]) != 'undefined' && this._updateTable[checkStep - this._stepSize].num >= this._updateTable[checkStep  - this._stepSize].tot){
+					delete this._updateTable[checkStep - this._stepSize];
+					this._firstStep = checkStep;
+				}
 			}
 			checkStep += this._stepSize;
 		}
@@ -107,13 +104,19 @@ exports.Collider = function(options){
 		interpolationStep = beginStep;
 		while(interpolationStep <= currStep){
 			if(interpolationStep != currStep && interpolationStep != beginStep){ // on every step except the first and last
-				var formattedData = {
-					"playerId": updateData.playerId,
-					"x": this._updateTable[beginStep].data[updateData.playerId].x,
-					"y": this._updateTable[beginStep].data[updateData.playerId].y
-				};
-				this._updateTable[interpolationStep].data[updateData.playerId] = this.movementFunction(formattedData, updateData, beginStep, currStep, interpolationStep);
-				this._updateTable[interpolationStep].num ++; //we have added some data to a row
+				try{
+					var formattedData = {
+						"playerId": updateData.playerId,
+						"x": this._updateTable[beginStep].data[updateData.playerId].x, //sometimes this breaks
+						"y": this._updateTable[beginStep].data[updateData.playerId].y
+					};
+					this._updateTable[interpolationStep].data[updateData.playerId] = this.movementFunction(formattedData, updateData, beginStep, currStep, interpolationStep);
+					this._updateTable[interpolationStep].num ++; //we have added some data to a row
+				} catch(err){
+					var fs = require('fs');
+					fs.writeFileSync('./table.json', JSON.stringify(this._updateTable));
+					debugger;
+				}
 			}
 			//do collision detection against all other existing players at that row
 			for(var otherPlayer in this._updateTable[interpolationStep].data){ //for each player in the row
@@ -139,6 +142,7 @@ exports.Collider = function(options){
 			}
 			interpolationStep += this._stepSize; //go to the next row
 		}
+		if(Object.keys(this._updateTable).length > 50) console.log("WARNING: COLLISION TABLE IS AT " + Object.keys(this._updateTable).length);
 		return collisions;
 	};
 };
